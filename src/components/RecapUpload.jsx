@@ -4,10 +4,10 @@ import { Upload, Film, Play, Pause, Wand2, Mic2, X, Check, Sparkles, Loader2, Al
 const TTS_ENDPOINT = "https://tts-pro-l6tb.onrender.com/api/generate-tts";
 const PREVIEW_TEXT = "မင်္ဂလာပါ၊ ဒါက ကျွန်တော့်အသံနမူနာ ဖြစ်ပါတယ်။";
 
-// Set this to your deployed Recap backend URL once it's live on Render,
-// e.g. via a Vite env var: import.meta.env.VITE_RECAP_BACKEND_URL
+// Recap backend (Render) — falls back to this deployed URL, or override
+// locally via a .env file with VITE_RECAP_BACKEND_URL for local dev.
 const RECAP_BACKEND_URL =
-  import.meta.env.VITE_RECAP_BACKEND_URL || "http://localhost:3000";
+  import.meta.env.VITE_RECAP_BACKEND_URL || "https://recap-backend-mq5l.onrender.com";
 
 // Voice id → TTS Pro's Gemini voice name
 const VOICE_TTS_NAME = {
