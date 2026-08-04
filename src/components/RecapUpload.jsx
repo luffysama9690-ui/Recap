@@ -4,6 +4,11 @@ import { Upload, Film, Play, Pause, Wand2, Mic2, X, Check, Sparkles, Loader2, Al
 const TTS_ENDPOINT = "https://tts-pro-l6tb.onrender.com/api/generate-tts";
 const PREVIEW_TEXT = "မင်္ဂလာပါ၊ ဒါက ကျွန်တော့်အသံနမူနာ ဖြစ်ပါတယ်။";
 
+// Set this to your deployed Recap backend URL once it's live on Render,
+// e.g. via a Vite env var: import.meta.env.VITE_RECAP_BACKEND_URL
+const RECAP_BACKEND_URL =
+  import.meta.env.VITE_RECAP_BACKEND_URL || "http://localhost:3000";
+
 // Voice id → TTS Pro's Gemini voice name
 const VOICE_TTS_NAME = {
   hsayama: "Callirrhoe",
@@ -59,9 +64,22 @@ export default function RecapUpload() {
   const [playingPreview, setPlayingPreview] = useState(null);
   const [loadingPreview, setLoadingPreview] = useState(null);
   const [previewError, setPreviewError] = useState(null);
-  const [stage, setStage] = useState("idle"); // idle | ready | processing
+  // idle | ready | processing | done | error
+  const [stage, setStage] = useState("idle");
+  const [jobStatus, setJobStatus] = useState(null); // backend pipeline status string
+  const [genError, setGenError] = useState(null);
+  const [resultUrl, setResultUrl] = useState(null);
   const inputRef = useRef(null);
   const audioRef = useRef(null);
+  const pollRef = useRef(null);
+
+  const STAGE_LABELS = {
+    queued: "တန်းစီနေပါတယ်…",
+    transcribing: "ဗီဒီယိုထဲက စကားလုံးတွေ နားထောင်နေပါတယ်…",
+    writing_script: "ဇာတ်ကြောင်း ရေးနေပါတယ်…",
+    narrating: `${""}အသံသွင်းနေပါတယ်…`,
+    rendering: "ဗီဒီယို ပြင်ဆင်နေပါတယ်…",
+  };
 
   const handleFiles = useCallback((files) => {
     const f = files?.[0];
@@ -154,10 +172,59 @@ export default function RecapUpload() {
     }
   };
 
-  const startGenerate = () => {
+  const stopPolling = () => {
+    if (pollRef.current) {
+      clearInterval(pollRef.current);
+      pollRef.current = null;
+    }
+  };
+
+  const startGenerate = async () => {
     if (!file) return;
     setStage("processing");
-    // Wire this to your backend: POST video + { voice, tone } → job id → poll status.
+    setGenError(null);
+    setResultUrl(null);
+    setJobStatus("queued");
+
+    try {
+      const form = new FormData();
+      form.append("video", file);
+      form.append("voice", voice);
+      form.append("tone", tone);
+
+      const res = await fetch(`${RECAP_BACKEND_URL}/api/process`, {
+        method: "POST",
+        body: form,
+      });
+      if (!res.ok) throw new Error(`Upload failed (${res.status})`);
+      const { jobId } = await res.json();
+
+      pollRef.current = setInterval(async () => {
+        try {
+          const statusRes = await fetch(`${RECAP_BACKEND_URL}/api/process/${jobId}`);
+          if (!statusRes.ok) throw new Error(`Status check failed (${statusRes.status})`);
+          const data = await statusRes.json();
+          setJobStatus(data.status);
+
+          if (data.status === "error") {
+            stopPolling();
+            setGenError(data.error || "အမှားတစ်ခုခု ဖြစ်သွားပါတယ်");
+            setStage("error");
+          } else if (data.status === "done") {
+            stopPolling();
+            setResultUrl(`${RECAP_BACKEND_URL}/api/process/${jobId}/result`);
+            setStage("done");
+          }
+        } catch (err) {
+          stopPolling();
+          setGenError(err.message);
+          setStage("error");
+        }
+      }, 2500);
+    } catch (err) {
+      setGenError(err.message);
+      setStage("error");
+    }
   };
 
   const activeVoice = VOICES.find((v) => v.id === voice);
@@ -410,7 +477,7 @@ export default function RecapUpload() {
             {stage === "processing" ? (
               <>
                 <Wand2 size={17} className="animate-pulse" />
-                {activeVoice?.name} က ဇာတ်ကြောင်းပြောနေပါပြီ…
+                {STAGE_LABELS[jobStatus] || `${activeVoice?.name} က ဇာတ်ကြောင်းပြောနေပါပြီ…`}
               </>
             ) : (
               <>
@@ -419,6 +486,7 @@ export default function RecapUpload() {
               </>
             )}
           </button>
+
           {stage === "processing" && (
             <div className="mt-4 h-1 w-full overflow-hidden rounded-full bg-white/5">
               <div
@@ -430,6 +498,23 @@ export default function RecapUpload() {
                 }}
               />
             </div>
+          )}
+
+          {stage === "error" && (
+            <p className="mt-4 text-center text-[13px] text-[#B2452D]">
+              အမှားတစ်ခုခု ဖြစ်သွားပါတယ်: {genError}
+            </p>
+          )}
+
+          {stage === "done" && resultUrl && (
+            <a
+              href={resultUrl}
+              className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl border py-3 text-[14px] font-medium transition hover:border-[#C9A227] hover:text-[#C9A227]"
+              style={{ borderColor: "rgba(240,230,210,0.25)" }}
+            >
+              <Check size={16} />
+              Recap ဗီဒီယို ဒေါင်းလုဒ်ဆွဲရန်
+            </a>
           )}
         </section>
 
