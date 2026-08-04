@@ -117,11 +117,12 @@ export default function RecapUpload() {
       let audioUrl;
 
       if (contentType.includes("application/json")) {
-        // Backend returns { audio: "<base64>" } or similar
+        // TTS Pro returns { audioBase64: "<base64>", mimeType: "audio/wav", ... }
         const data = await res.json();
-        const base64 = data.audio || data.audioContent || data.data;
+        const base64 = data.audioBase64 || data.audio || data.audioContent || data.data;
         if (!base64) throw new Error("Response ဆီမှာ audio data မပါဘူး");
-        audioUrl = `data:audio/mpeg;base64,${base64}`;
+        const mime = data.mimeType || "audio/wav";
+        audioUrl = `data:${mime};base64,${base64}`;
       } else {
         // Backend streams raw audio bytes
         const blob = await res.blob();
