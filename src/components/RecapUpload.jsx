@@ -1,21 +1,12 @@
 import { useState, useRef, useCallback } from "react";
 import { Upload, Film, Play, Pause, Wand2, Mic2, X, Check, Sparkles, Loader2, AlertCircle } from "lucide-react";
 
-const TTS_ENDPOINT = "https://tts-pro-l6tb.onrender.com/api/generate-tts";
 const PREVIEW_TEXT = "မင်္ဂလာပါ၊ ဒါက ကျွန်တော့်အသံနမူနာ ဖြစ်ပါတယ်။";
 
 // Recap backend (Render) — falls back to this deployed URL, or override
 // locally via a .env file with VITE_RECAP_BACKEND_URL for local dev.
 const RECAP_BACKEND_URL =
   import.meta.env.VITE_RECAP_BACKEND_URL || "https://recap-backend-mq5l.onrender.com";
-
-// Voice id → TTS Pro's Gemini voice name
-const VOICE_TTS_NAME = {
-  hsayama: "Callirrhoe",
-  kolay: "Puck",
-  mahmyaing: "Aoede",
-  bogyi: "Orus",
-};
 
 // ── Voice roster ──────────────────────────────────────────────
 const VOICES = [
@@ -118,34 +109,20 @@ export default function RecapUpload() {
     setLoadingPreview(id);
 
     try {
-      const res = await fetch(TTS_ENDPOINT, {
+      const res = await fetch(`${RECAP_BACKEND_URL}/api/preview-voice`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          text: PREVIEW_TEXT,
-          voice: VOICE_TTS_NAME[id],
-        }),
+        body: JSON.stringify({ voice: id }),
       });
 
       if (!res.ok) {
         throw new Error(`TTS server responded ${res.status}`);
       }
 
-      const contentType = res.headers.get("content-type") || "";
-      let audioUrl;
-
-      if (contentType.includes("application/json")) {
-        // TTS Pro returns { audioBase64: "<base64>", mimeType: "audio/wav", ... }
-        const data = await res.json();
-        const base64 = data.audioBase64 || data.audio || data.audioContent || data.data;
-        if (!base64) throw new Error("Response ဆီမှာ audio data မပါဘူး");
-        const mime = data.mimeType || "audio/wav";
-        audioUrl = `data:${mime};base64,${base64}`;
-      } else {
-        // Backend streams raw audio bytes
-        const blob = await res.blob();
-        audioUrl = URL.createObjectURL(blob);
-      }
+      const data = await res.json();
+      const base64 = data.audioBase64;
+      if (!base64) throw new Error("Response ဆီမှာ audio data မပါဘူး");
+      const audioUrl = `data:${data.mimeType || "audio/wav"};base64,${base64}`;
 
       const audio = new Audio(audioUrl);
       audioRef.current = audio;
