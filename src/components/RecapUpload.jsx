@@ -227,7 +227,7 @@ export default function RecapUpload() {
       const res = await fetch(`${RECAP_BACKEND_URL}/api/link`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ url: linkUrl.trim(), voice, tone }),
+        body: JSON.stringify({ url: linkUrl.trim(), voice, tone, info: linkInfo }),
       });
       if (!res.ok) throw new Error(`Link submit failed (${res.status})`);
       const { jobId } = await res.json();
