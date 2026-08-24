@@ -432,7 +432,7 @@ export default function RecapUpload() {
                 setLinkInfo(null);
                 setLinkError(null);
               }}
-              placeholder="TikTok ဒါမှမဟုတ် RedNote link ကို ကူးထည့်ပါ"
+              placeholder="Link ကို ကူးထည့်ပါ"
               className="min-w-0 flex-1 rounded-lg border border-[#F0E6D2]/18 bg-transparent px-4 py-2.5 text-[14px] outline-none placeholder:text-[#F0E6D2]/35 focus:border-[#C9A227]"
             />
             <button
