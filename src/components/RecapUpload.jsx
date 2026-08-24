@@ -306,7 +306,12 @@ export default function RecapUpload() {
         {/* ── Mode toggle: Upload vs Link ─────────────────── */}
         <div className="mb-4 inline-flex rounded-full border border-[#F0E6D2]/14 p-1">
           <button
-            onClick={() => setMode("upload")}
+            onClick={() => {
+              setMode("upload");
+              setStage("idle");
+              setGenError(null);
+              setResultUrl(null);
+            }}
             className="rounded-full px-4 py-1.5 text-[13px] transition"
             style={{
               background: mode === "upload" ? "rgba(201,162,39,0.14)" : "transparent",
@@ -316,7 +321,12 @@ export default function RecapUpload() {
             ဖိုင် Upload
           </button>
           <button
-            onClick={() => setMode("link")}
+            onClick={() => {
+              setMode("link");
+              setStage("idle");
+              setGenError(null);
+              setResultUrl(null);
+            }}
             className="rounded-full px-4 py-1.5 text-[13px] transition"
             style={{
               background: mode === "link" ? "rgba(201,162,39,0.14)" : "transparent",
