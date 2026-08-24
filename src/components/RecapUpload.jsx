@@ -1,12 +1,12 @@
 import { useState, useRef, useCallback } from "react";
-import { Upload, Film, Play, Pause, Wand2, Mic2, X, Check, Sparkles, Loader2, AlertCircle } from "lucide-react";
+import { Upload, Film, Play, Pause, Wand2, Mic2, X, Check, Sparkles, Loader2, AlertCircle, Link2 } from "lucide-react";
 
 const PREVIEW_TEXT = "မင်္ဂလာပါ၊ ဒါက ကျွန်တော့်အသံနမူနာ ဖြစ်ပါတယ်။";
 
 // Recap backend (Render) — falls back to this deployed URL, or override
 // locally via a .env file with VITE_RECAP_BACKEND_URL for local dev.
 const RECAP_BACKEND_URL =
-  import.meta.env.VITE_RECAP_BACKEND_URL || "https://recap-backend-mq5l.onrender.com";
+  import.meta.env.VITE_RECAP_BACKEND_URL || "https://recap-backend-1.onrender.com";
 
 // ── Voice roster ──────────────────────────────────────────────
 const VOICES = [
@@ -48,6 +48,7 @@ const TONES = [
 ];
 
 export default function RecapUpload() {
+  const [mode, setMode] = useState("upload"); // upload | link
   const [file, setFile] = useState(null);
   const [dragActive, setDragActive] = useState(false);
   const [voice, setVoice] = useState("hsayama");
@@ -64,8 +65,38 @@ export default function RecapUpload() {
   const audioRef = useRef(null);
   const pollRef = useRef(null);
 
+  // ── Link import (TikTok/RedNote) state ──────────────────────
+  const [linkUrl, setLinkUrl] = useState("");
+  const [linkInfo, setLinkInfo] = useState(null); // { title, duration, thumbnail, uploader, platform }
+  const [linkChecking, setLinkChecking] = useState(false);
+  const [linkError, setLinkError] = useState(null);
+
+  const checkLink = async () => {
+    if (!linkUrl.trim()) return;
+    setLinkChecking(true);
+    setLinkError(null);
+    setLinkInfo(null);
+    try {
+      const res = await fetch(`${RECAP_BACKEND_URL}/api/link/preview`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url: linkUrl.trim() }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.ok) {
+        throw new Error(data.error || `Link စစ်ဆေးမှု မအောင်မြင်ပါ (${res.status})`);
+      }
+      setLinkInfo(data.info);
+    } catch (err) {
+      setLinkError(err.message);
+    } finally {
+      setLinkChecking(false);
+    }
+  };
+
   const STAGE_LABELS = {
     queued: "တန်းစီနေပါတယ်…",
+    downloading: "Link ကနေ ဗီဒီယို ဒေါင်းလုဒ်ဆွဲနေပါတယ်…",
     transcribing: "ဗီဒီယိုထဲက စကားလုံးတွေ နားထောင်နေပါတယ်…",
     writing_script: "ဇာတ်ကြောင်း ရေးနေပါတယ်…",
     narrating: `${""}အသံသွင်းနေပါတယ်…`,
@@ -157,51 +188,80 @@ export default function RecapUpload() {
   };
 
   const startGenerate = async () => {
-    if (!file) return;
+    if (mode === "upload") {
+      if (!file) return;
+      setStage("processing");
+      setGenError(null);
+      setResultUrl(null);
+      setJobStatus("queued");
+
+      try {
+        const form = new FormData();
+        form.append("video", file);
+        form.append("voice", voice);
+        form.append("tone", tone);
+
+        const res = await fetch(`${RECAP_BACKEND_URL}/api/process`, {
+          method: "POST",
+          body: form,
+        });
+        if (!res.ok) throw new Error(`Upload failed (${res.status})`);
+        const { jobId } = await res.json();
+
+        pollJob(`${RECAP_BACKEND_URL}/api/process/${jobId}`, `${RECAP_BACKEND_URL}/api/process/${jobId}/result`);
+      } catch (err) {
+        setGenError(err.message);
+        setStage("error");
+      }
+      return;
+    }
+
+    // mode === "link"
+    if (!linkInfo) return;
     setStage("processing");
     setGenError(null);
     setResultUrl(null);
-    setJobStatus("queued");
+    setJobStatus("downloading");
 
     try {
-      const form = new FormData();
-      form.append("video", file);
-      form.append("voice", voice);
-      form.append("tone", tone);
-
-      const res = await fetch(`${RECAP_BACKEND_URL}/api/process`, {
+      const res = await fetch(`${RECAP_BACKEND_URL}/api/link`, {
         method: "POST",
-        body: form,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url: linkUrl.trim(), voice, tone }),
       });
-      if (!res.ok) throw new Error(`Upload failed (${res.status})`);
+      if (!res.ok) throw new Error(`Link submit failed (${res.status})`);
       const { jobId } = await res.json();
 
-      pollRef.current = setInterval(async () => {
-        try {
-          const statusRes = await fetch(`${RECAP_BACKEND_URL}/api/process/${jobId}`);
-          if (!statusRes.ok) throw new Error(`Status check failed (${statusRes.status})`);
-          const data = await statusRes.json();
-          setJobStatus(data.status);
-
-          if (data.status === "error") {
-            stopPolling();
-            setGenError(data.error || "အမှားတစ်ခုခု ဖြစ်သွားပါတယ်");
-            setStage("error");
-          } else if (data.status === "done") {
-            stopPolling();
-            setResultUrl(`${RECAP_BACKEND_URL}/api/process/${jobId}/result`);
-            setStage("done");
-          }
-        } catch (err) {
-          stopPolling();
-          setGenError(err.message);
-          setStage("error");
-        }
-      }, 2500);
+      pollJob(`${RECAP_BACKEND_URL}/api/link/${jobId}`, `${RECAP_BACKEND_URL}/api/link/${jobId}/result`);
     } catch (err) {
       setGenError(err.message);
       setStage("error");
     }
+  };
+
+  const pollJob = (statusUrl, resultUrlBase) => {
+    pollRef.current = setInterval(async () => {
+      try {
+        const statusRes = await fetch(statusUrl);
+        if (!statusRes.ok) throw new Error(`Status check failed (${statusRes.status})`);
+        const data = await statusRes.json();
+        setJobStatus(data.status);
+
+        if (data.status === "error") {
+          stopPolling();
+          setGenError(data.error || "အမှားတစ်ခုခု ဖြစ်သွားပါတယ်");
+          setStage("error");
+        } else if (data.status === "done") {
+          stopPolling();
+          setResultUrl(resultUrlBase);
+          setStage("done");
+        }
+      } catch (err) {
+        stopPolling();
+        setGenError(err.message);
+        setStage("error");
+      }
+    }, 2500);
   };
 
   const activeVoice = VOICES.find((v) => v.id === voice);
@@ -239,7 +299,32 @@ export default function RecapUpload() {
           </p>
         </header>
 
+        {/* ── Mode toggle: Upload vs Link ─────────────────── */}
+        <div className="mb-4 inline-flex rounded-full border border-[#F0E6D2]/14 p-1">
+          <button
+            onClick={() => setMode("upload")}
+            className="rounded-full px-4 py-1.5 text-[13px] transition"
+            style={{
+              background: mode === "upload" ? "rgba(201,162,39,0.14)" : "transparent",
+              color: mode === "upload" ? "#C9A227" : "rgba(240,230,210,0.55)",
+            }}
+          >
+            ဖိုင် Upload
+          </button>
+          <button
+            onClick={() => setMode("link")}
+            className="rounded-full px-4 py-1.5 text-[13px] transition"
+            style={{
+              background: mode === "link" ? "rgba(201,162,39,0.14)" : "transparent",
+              color: mode === "link" ? "#C9A227" : "rgba(240,230,210,0.55)",
+            }}
+          >
+            Link (TikTok/RedNote)
+          </button>
+        </div>
+
         {/* ── Upload zone ─────────────────────────────────── */}
+        {mode === "upload" && (
         <section
           onDragOver={(e) => {
             e.preventDefault();
@@ -324,6 +409,67 @@ export default function RecapUpload() {
             )}
           </div>
         </section>
+        )}
+
+        {/* ── Link import zone ────────────────────────────── */}
+        {mode === "link" && (
+        <section
+          className="relative overflow-hidden rounded-2xl border p-8"
+          style={{
+            borderColor: "rgba(240,230,210,0.14)",
+            background: "rgba(255,255,255,0.02)",
+          }}
+        >
+          <div className="flex items-center gap-3">
+            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-[#C9A227]/40 text-[#C9A227]">
+              <Link2 size={18} strokeWidth={1.5} />
+            </div>
+            <input
+              type="url"
+              value={linkUrl}
+              onChange={(e) => {
+                setLinkUrl(e.target.value);
+                setLinkInfo(null);
+                setLinkError(null);
+              }}
+              placeholder="TikTok ဒါမှမဟုတ် RedNote link ကို ကူးထည့်ပါ"
+              className="min-w-0 flex-1 rounded-lg border border-[#F0E6D2]/18 bg-transparent px-4 py-2.5 text-[14px] outline-none placeholder:text-[#F0E6D2]/35 focus:border-[#C9A227]"
+            />
+            <button
+              onClick={checkLink}
+              disabled={!linkUrl.trim() || linkChecking}
+              className="shrink-0 rounded-full border border-[#F0E6D2]/25 px-5 py-2.5 text-[13px] transition hover:border-[#C9A227] hover:text-[#C9A227] disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              {linkChecking ? <Loader2 size={14} className="animate-spin" /> : "စစ်ဆေးမယ်"}
+            </button>
+          </div>
+
+          {linkError && (
+            <p className="mt-3 text-[13px] text-[#B2452D]">{linkError}</p>
+          )}
+
+          {linkInfo && (
+            <div className="mt-5 flex items-center gap-4">
+              {linkInfo.thumbnail && (
+                <img
+                  src={linkInfo.thumbnail}
+                  alt=""
+                  className="h-16 w-16 shrink-0 rounded-lg object-cover"
+                />
+              )}
+              <div className="min-w-0">
+                <p className="truncate text-[14px] font-medium">{linkInfo.title}</p>
+                <p className="mt-0.5 text-[12px] text-[#F0E6D2]/45">
+                  {linkInfo.uploader} · {linkInfo.platform} ·{" "}
+                  {Math.floor((linkInfo.duration || 0) / 60)}:
+                  {String(Math.round((linkInfo.duration || 0) % 60)).padStart(2, "0")}
+                </p>
+              </div>
+              <Check size={18} className="ml-auto shrink-0 text-[#C9A227]" />
+            </div>
+          )}
+        </section>
+        )}
 
         {/* ── Voice selection ─────────────────────────────── */}
         <section className="mt-14">
@@ -443,7 +589,9 @@ export default function RecapUpload() {
         {/* ── Generate ─────────────────────────────────────── */}
         <section className="mt-14">
           <button
-            disabled={!file || stage === "processing"}
+            disabled={
+              (mode === "upload" ? !file : !linkInfo) || stage === "processing"
+            }
             onClick={startGenerate}
             className="flex w-full items-center justify-center gap-2 rounded-xl py-4 text-[15px] font-medium transition disabled:cursor-not-allowed disabled:opacity-40"
             style={{
