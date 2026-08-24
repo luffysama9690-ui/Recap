@@ -59,6 +59,7 @@ export default function RecapUpload() {
   // idle | ready | processing | done | error
   const [stage, setStage] = useState("idle");
   const [jobStatus, setJobStatus] = useState(null); // backend pipeline status string
+  const [jobProgress, setJobProgress] = useState(0); // 0-100
   const [genError, setGenError] = useState(null);
   const [resultUrl, setResultUrl] = useState(null);
   const inputRef = useRef(null);
@@ -194,6 +195,7 @@ export default function RecapUpload() {
       setGenError(null);
       setResultUrl(null);
       setJobStatus("queued");
+      setJobProgress(0);
 
       try {
         const form = new FormData();
@@ -222,6 +224,7 @@ export default function RecapUpload() {
     setGenError(null);
     setResultUrl(null);
     setJobStatus("downloading");
+    setJobProgress(0);
 
     try {
       const res = await fetch(`${RECAP_BACKEND_URL}/api/link`, {
@@ -246,6 +249,7 @@ export default function RecapUpload() {
         if (!statusRes.ok) throw new Error(`Status check failed (${statusRes.status})`);
         const data = await statusRes.json();
         setJobStatus(data.status);
+        if (typeof data.progress === "number") setJobProgress(data.progress);
 
         if (data.status === "error") {
           stopPolling();
@@ -603,6 +607,7 @@ export default function RecapUpload() {
               <>
                 <Wand2 size={17} className="animate-pulse" />
                 {STAGE_LABELS[jobStatus] || `${activeVoice?.name} က ဇာတ်ကြောင်းပြောနေပါပြီ…`}
+                <span className="ml-1 tabular-nums opacity-80">{jobProgress}%</span>
               </>
             ) : (
               <>
@@ -615,11 +620,10 @@ export default function RecapUpload() {
           {stage === "processing" && (
             <div className="mt-4 h-1 w-full overflow-hidden rounded-full bg-white/5">
               <div
-                className="h-full rounded-full"
+                className="h-full rounded-full transition-all duration-500 ease-out"
                 style={{
-                  width: "40%",
+                  width: `${Math.max(jobProgress, 3)}%`,
                   background: "linear-gradient(90deg, #C9A227, #B2452D)",
-                  animation: "recapBar 1.6s ease-in-out infinite",
                 }}
               />
             </div>
