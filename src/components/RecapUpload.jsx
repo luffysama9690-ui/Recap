@@ -90,9 +90,23 @@ export default function RecapUpload() {
   const [jobProgress, setJobProgress] = useState(0); // 0-100
   const [genError, setGenError] = useState(null);
   const [resultUrl, setResultUrl] = useState(null);
+  const [jobId, setJobId] = useState(null);
   const inputRef = useRef(null);
   const audioRef = useRef(null);
   const pollRef = useRef(null);
+
+  // ── Post-generation editor: blur box + logo overlay ─────────
+  const [showBlurBox, setShowBlurBox] = useState(false);
+  const [blurBox, setBlurBox] = useState({ xPct: 8, yPct: 8, wPct: 30, hPct: 12 });
+  const [showLogo, setShowLogo] = useState(false);
+  const [logoFile, setLogoFile] = useState(null);
+  const [logoPreviewUrl, setLogoPreviewUrl] = useState(null);
+  const [logoBox, setLogoBox] = useState({ xPct: 4, yPct: 4, wPct: 16 });
+  const [applyingEdit, setApplyingEdit] = useState(false);
+  const [editError, setEditError] = useState(null);
+  const [editedResultUrl, setEditedResultUrl] = useState(null);
+  const previewBoxRef = useRef(null);
+  const logoInputRef = useRef(null);
 
   // ── Link import (TikTok/RedNote) state ──────────────────────
   const [linkUrl, setLinkUrl] = useState("");
@@ -216,12 +230,26 @@ export default function RecapUpload() {
     }
   };
 
+  const resetEditorState = () => {
+    setShowBlurBox(false);
+    setBlurBox({ xPct: 8, yPct: 8, wPct: 30, hPct: 12 });
+    setShowLogo(false);
+    setLogoFile(null);
+    setLogoPreviewUrl(null);
+    setLogoBox({ xPct: 4, yPct: 4, wPct: 16 });
+    setApplyingEdit(false);
+    setEditError(null);
+    setEditedResultUrl(null);
+  };
+
   const startGenerate = async () => {
     if (mode === "upload") {
       if (!file) return;
       setStage("processing");
       setGenError(null);
       setResultUrl(null);
+      setJobId(null);
+      resetEditorState();
       setJobStatus("queued");
       setJobProgress(0);
 
@@ -236,9 +264,10 @@ export default function RecapUpload() {
           body: form,
         });
         if (!res.ok) throw new Error(`Upload failed (${res.status})`);
-        const { jobId } = await res.json();
+        const { jobId: newJobId } = await res.json();
+        setJobId(newJobId);
 
-        pollJob(`${RECAP_BACKEND_URL}/api/process/${jobId}`, `${RECAP_BACKEND_URL}/api/process/${jobId}/result`);
+        pollJob(`${RECAP_BACKEND_URL}/api/process/${newJobId}`, `${RECAP_BACKEND_URL}/api/process/${newJobId}/result`);
       } catch (err) {
         setGenError(err.message);
         setStage("error");
@@ -251,6 +280,8 @@ export default function RecapUpload() {
     setStage("processing");
     setGenError(null);
     setResultUrl(null);
+    setJobId(null);
+    resetEditorState();
     setJobStatus("downloading");
     setJobProgress(0);
 
@@ -261,9 +292,10 @@ export default function RecapUpload() {
         body: JSON.stringify({ url: linkUrl.trim(), voice, tone, info: linkInfo }),
       });
       if (!res.ok) throw new Error(`Link submit failed (${res.status})`);
-      const { jobId } = await res.json();
+      const { jobId: newJobId } = await res.json();
+      setJobId(newJobId);
 
-      pollJob(`${RECAP_BACKEND_URL}/api/link/${jobId}`, `${RECAP_BACKEND_URL}/api/link/${jobId}/result`);
+      pollJob(`${RECAP_BACKEND_URL}/api/link/${newJobId}`, `${RECAP_BACKEND_URL}/api/link/${newJobId}/result`);
     } catch (err) {
       setGenError(err.message);
       setStage("error");
@@ -297,6 +329,108 @@ export default function RecapUpload() {
   };
 
   const activeVoice = VOICES.find((v) => v.id === voice);
+
+  // ── Post-generation editor: drag-to-position blur box / logo ─
+  const startDrag = (kind) => (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const container = previewBoxRef.current;
+    if (!container) return;
+    const rect = container.getBoundingClientRect();
+    const box = kind === "blur" ? blurBox : logoBox;
+    const startClientX = e.clientX;
+    const startClientY = e.clientY;
+    const startXPct = box.xPct;
+    const startYPct = box.yPct;
+    const maxYPct = kind === "blur" ? 100 - box.hPct : 96;
+
+    const onMove = (moveEvent) => {
+      const dxPct = ((moveEvent.clientX - startClientX) / rect.width) * 100;
+      const dyPct = ((moveEvent.clientY - startClientY) / rect.height) * 100;
+      const newX = Math.min(100 - box.wPct, Math.max(0, startXPct + dxPct));
+      const newY = Math.min(maxYPct, Math.max(0, startYPct + dyPct));
+      if (kind === "blur") setBlurBox((b) => ({ ...b, xPct: newX, yPct: newY }));
+      else setLogoBox((b) => ({ ...b, xPct: newX, yPct: newY }));
+    };
+    const onUp = () => {
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseup", onUp);
+    };
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onUp);
+  };
+
+  const startResizeBlur = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const container = previewBoxRef.current;
+    if (!container) return;
+    const rect = container.getBoundingClientRect();
+    const startClientX = e.clientX;
+    const startClientY = e.clientY;
+    const startW = blurBox.wPct;
+    const startH = blurBox.hPct;
+
+    const onMove = (moveEvent) => {
+      const dwPct = ((moveEvent.clientX - startClientX) / rect.width) * 100;
+      const dhPct = ((moveEvent.clientY - startClientY) / rect.height) * 100;
+      setBlurBox((b) => ({
+        ...b,
+        wPct: Math.min(100 - b.xPct, Math.max(8, startW + dwPct)),
+        hPct: Math.min(100 - b.yPct, Math.max(6, startH + dhPct)),
+      }));
+    };
+    const onUp = () => {
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseup", onUp);
+    };
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onUp);
+  };
+
+  const handleLogoFile = (f) => {
+    if (!f) return;
+    setLogoFile(f);
+    setLogoPreviewUrl((old) => {
+      if (old) URL.revokeObjectURL(old);
+      return URL.createObjectURL(f);
+    });
+    setShowLogo(true);
+  };
+
+  const applyEdits = async () => {
+    if (!jobId || (!showBlurBox && !(showLogo && logoFile))) return;
+    setApplyingEdit(true);
+    setEditError(null);
+    try {
+      const form = new FormData();
+      if (showBlurBox) {
+        form.append("blurX", blurBox.xPct);
+        form.append("blurY", blurBox.yPct);
+        form.append("blurW", blurBox.wPct);
+        form.append("blurH", blurBox.hPct);
+      }
+      if (showLogo && logoFile) {
+        form.append("logo", logoFile);
+        form.append("logoX", logoBox.xPct);
+        form.append("logoY", logoBox.yPct);
+        form.append("logoW", logoBox.wPct);
+      }
+      const res = await fetch(`${RECAP_BACKEND_URL}/api/jobs/${jobId}/edit`, {
+        method: "POST",
+        body: form,
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || `Edit failed (${res.status})`);
+      }
+      setEditedResultUrl(`${RECAP_BACKEND_URL}/api/jobs/${jobId}/edit-result?t=${Date.now()}`);
+    } catch (err) {
+      setEditError(err.message);
+    } finally {
+      setApplyingEdit(false);
+    }
+  };
 
   return (
     <div
@@ -674,14 +808,160 @@ export default function RecapUpload() {
           )}
 
           {stage === "done" && resultUrl && (
-            <a
-              href={resultUrl}
-              className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl border py-3 text-[14px] font-medium transition hover:border-[#C9A227] hover:text-[#C9A227]"
-              style={{ borderColor: "rgba(240,230,210,0.25)" }}
-            >
-              <Check size={16} />
-              Download Recap Video
-            </a>
+            <div className="mt-4 space-y-4">
+              {/* Video preview with draggable blur box / logo overlay */}
+              <div
+                ref={previewBoxRef}
+                className="relative overflow-hidden rounded-xl border"
+                style={{ borderColor: "rgba(240,230,210,0.18)" }}
+              >
+                <video
+                  src={resultUrl}
+                  controls
+                  className="block w-full"
+                  style={{ maxHeight: 420, background: "#000" }}
+                />
+
+                {showBlurBox && (
+                  <div
+                    onMouseDown={startDrag("blur")}
+                    className="absolute cursor-move border-2"
+                    style={{
+                      left: `${blurBox.xPct}%`,
+                      top: `${blurBox.yPct}%`,
+                      width: `${blurBox.wPct}%`,
+                      height: `${blurBox.hPct}%`,
+                      borderColor: "#C9A227",
+                      background: "rgba(201,162,39,0.18)",
+                      backdropFilter: "blur(6px)",
+                    }}
+                  >
+                    <span className="absolute left-1 top-1 rounded bg-black/60 px-1.5 py-0.5 text-[10px] text-[#F0E6D2]">
+                      Blur
+                    </span>
+                    <div
+                      onMouseDown={startResizeBlur}
+                      className="absolute bottom-0 right-0 h-3 w-3 cursor-nwse-resize rounded-tl bg-[#C9A227]"
+                    />
+                  </div>
+                )}
+
+                {showLogo && logoPreviewUrl && (
+                  <img
+                    src={logoPreviewUrl}
+                    onMouseDown={startDrag("logo")}
+                    className="absolute cursor-move select-none"
+                    style={{
+                      left: `${logoBox.xPct}%`,
+                      top: `${logoBox.yPct}%`,
+                      width: `${logoBox.wPct}%`,
+                    }}
+                    draggable={false}
+                    alt="Logo overlay"
+                  />
+                )}
+              </div>
+
+              {/* Editor controls */}
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  onClick={() => setShowBlurBox((s) => !s)}
+                  className="rounded-full border px-3.5 py-1.5 text-[12.5px] transition"
+                  style={{
+                    borderColor: showBlurBox ? "#C9A227" : "rgba(240,230,210,0.2)",
+                    color: showBlurBox ? "#C9A227" : "rgba(240,230,210,0.7)",
+                    background: showBlurBox ? "rgba(201,162,39,0.1)" : "transparent",
+                  }}
+                >
+                  {showBlurBox ? "Remove Blur Box" : "Add Blur Box"}
+                </button>
+
+                {!showLogo || !logoFile ? (
+                  <>
+                    <button
+                      onClick={() => logoInputRef.current?.click()}
+                      className="rounded-full border px-3.5 py-1.5 text-[12.5px] transition hover:border-[#C9A227] hover:text-[#C9A227]"
+                      style={{ borderColor: "rgba(240,230,210,0.2)", color: "rgba(240,230,210,0.7)" }}
+                    >
+                      Add Logo
+                    </button>
+                    <input
+                      ref={logoInputRef}
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={(e) => handleLogoFile(e.target.files?.[0])}
+                    />
+                  </>
+                ) : (
+                  <>
+                    <button
+                      onClick={() => {
+                        setShowLogo(false);
+                        setLogoFile(null);
+                        setLogoPreviewUrl((old) => {
+                          if (old) URL.revokeObjectURL(old);
+                          return null;
+                        });
+                      }}
+                      className="rounded-full border px-3.5 py-1.5 text-[12.5px] transition"
+                      style={{ borderColor: "#C9A227", color: "#C9A227", background: "rgba(201,162,39,0.1)" }}
+                    >
+                      Remove Logo
+                    </button>
+                    <label className="flex items-center gap-2 text-[12px] text-[#F0E6D2]/50">
+                      Size
+                      <input
+                        type="range"
+                        min={5}
+                        max={40}
+                        value={logoBox.wPct}
+                        onChange={(e) => setLogoBox((b) => ({ ...b, wPct: Number(e.target.value) }))}
+                        className="w-24 accent-[#C9A227]"
+                      />
+                    </label>
+                  </>
+                )}
+
+                {(showBlurBox || (showLogo && logoFile)) && (
+                  <button
+                    onClick={applyEdits}
+                    disabled={applyingEdit}
+                    className="ml-auto flex items-center gap-1.5 rounded-full px-4 py-1.5 text-[12.5px] font-medium transition disabled:opacity-50"
+                    style={{ background: "linear-gradient(90deg, #C9A227, #B2452D)", color: "#150F0D" }}
+                  >
+                    {applyingEdit ? <Loader2 size={13} className="animate-spin" /> : <Wand2 size={13} />}
+                    {applyingEdit ? "Applying…" : "Apply Edits"}
+                  </button>
+                )}
+              </div>
+
+              {editError && (
+                <p className="text-[13px] text-[#B2452D]">Edit failed: {editError}</p>
+              )}
+
+              {/* Downloads */}
+              <div className="flex flex-col gap-2 sm:flex-row">
+                <a
+                  href={resultUrl}
+                  className="flex flex-1 items-center justify-center gap-2 rounded-xl border py-3 text-[14px] font-medium transition hover:border-[#C9A227] hover:text-[#C9A227]"
+                  style={{ borderColor: "rgba(240,230,210,0.25)" }}
+                >
+                  <Check size={16} />
+                  Download Original
+                </a>
+                {editedResultUrl && (
+                  <a
+                    href={editedResultUrl}
+                    className="flex flex-1 items-center justify-center gap-2 rounded-xl py-3 text-[14px] font-medium transition"
+                    style={{ background: "linear-gradient(90deg, #C9A227, #B2452D)", color: "#150F0D" }}
+                  >
+                    <Check size={16} />
+                    Download Edited Video
+                  </a>
+                )}
+              </div>
+            </div>
           )}
         </section>
 
