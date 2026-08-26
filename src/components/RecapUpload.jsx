@@ -585,7 +585,7 @@ export default function RecapUpload() {
                     Drag and drop your video file
                   </p>
                   <p className="mt-1 text-[13px] text-[#F0E6D2]/45">
-                    MP4, MOV — up to 500MB
+                    MP4, MOV — up to 2GB
                   </p>
                 </div>
                 <button
