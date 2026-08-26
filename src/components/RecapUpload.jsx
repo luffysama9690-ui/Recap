@@ -522,7 +522,7 @@ export default function RecapUpload() {
             </h2>
           </div>
 
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
             {VOICES.map((v) => {
               const selected = voice === v.id;
               const playing = playingPreview === v.id;
@@ -532,7 +532,7 @@ export default function RecapUpload() {
                 <button
                   key={v.id}
                   onClick={() => setVoice(v.id)}
-                  className="group relative flex items-start gap-3 rounded-xl border p-4 text-left transition-all duration-150"
+                  className="group relative flex items-center gap-2.5 rounded-xl border px-3 py-2.5 text-left transition-all duration-150"
                   style={{
                     borderColor: selected
                       ? v.accent
@@ -543,7 +543,7 @@ export default function RecapUpload() {
                   }}
                 >
                   <div
-                    className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-[13px] font-semibold"
+                    className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[12px] font-semibold"
                     style={{
                       background: `${v.accent}22`,
                       color: v.accent,
@@ -551,20 +551,20 @@ export default function RecapUpload() {
                   >
                     {v.name[0]}
                   </div>
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="text-[14px] font-medium">{v.name}</span>
-                      <span
-                        className="rounded-full px-2 py-0.5 text-[10px] uppercase tracking-wide"
-                        style={{ color: v.accent, background: `${v.accent}18` }}
-                      >
-                        {v.tag}
-                      </span>
-                    </div>
-                    <p className="mt-1 text-[12.5px] leading-snug text-[#F0E6D2]/50">
+
+                  <div className="flex min-w-0 flex-1 items-baseline gap-1.5">
+                    <span className="shrink-0 text-[13.5px] font-medium">{v.name}</span>
+                    <span className="truncate text-[12px] text-[#F0E6D2]/45">
                       {v.desc}
-                    </p>
+                    </span>
                   </div>
+
+                  <span
+                    className="shrink-0 rounded-full px-2 py-0.5 text-[9.5px] uppercase tracking-wide"
+                    style={{ color: v.accent, background: `${v.accent}18` }}
+                  >
+                    {v.tag}
+                  </span>
 
                   <span
                     onClick={(e) => {
@@ -573,7 +573,7 @@ export default function RecapUpload() {
                     }}
                     role="button"
                     aria-label={errored ? "Preview unavailable" : "Preview voice"}
-                    className="absolute right-3 top-3 flex h-6 w-6 items-center justify-center rounded-full text-[#F0E6D2]/50 transition hover:text-[#F0E6D2]"
+                    className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[#F0E6D2]/50 transition hover:text-[#F0E6D2]"
                   >
                     {loading ? (
                       <Loader2 size={12} className="animate-spin" />
