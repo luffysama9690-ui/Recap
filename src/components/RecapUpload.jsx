@@ -1,7 +1,7 @@
 import { useState, useRef, useCallback } from "react";
 import { Upload, Film, Play, Pause, Wand2, Mic2, X, Check, Sparkles, Loader2, AlertCircle, Link2 } from "lucide-react";
 
-const PREVIEW_TEXT = "မင်္ဂလာပါ၊ ဒါက ကျွန်တော့်အသံနမူနာ ဖြစ်ပါတယ်။";
+const PREVIEW_TEXT = "Hello, this is my voice sample.";
 
 // Recap backend (Render) — falls back to this deployed URL, or override
 // locally via a .env file with VITE_RECAP_BACKEND_URL for local dev.
@@ -12,67 +12,67 @@ const RECAP_BACKEND_URL =
 const VOICES = [
   {
     id: "hsayama",
-    name: "ဆရာမကြီး",
+    name: "Hsayama",
     tag: "Warm Elder",
-    desc: "နှေးညောင်း၊ လေးနက်တဲ့ ပုံပြင်ဆရာမ အသံ",
+    desc: "Slow, warm storyteller voice",
     accent: "#C9A227",
   },
   {
     id: "kolay",
-    name: "ကိုလေး",
+    name: "Kolay",
     tag: "Energetic",
-    desc: "သွက်လက်၊ လူငယ်ဆန်တဲ့ commentary အသံ",
+    desc: "Lively, youthful commentary voice",
     accent: "#B2452D",
   },
   {
     id: "mahmyaing",
-    name: "မမြိုင်",
+    name: "Mahmyaing",
     tag: "Gentle Narrator",
-    desc: "ညင်သာ၊ ခံစားစေတဲ့ ဇာတ်ကြောင်းပြော အသံ",
+    desc: "Soft, emotive storytelling voice",
     accent: "#7A6A9C",
   },
   {
     id: "bogyi",
-    name: "ဘိုကြီး",
+    name: "Bogyi",
     tag: "Deep Suspense",
-    desc: "နက်ရှိုင်း၊ တင်းမာတဲ့ thriller အသံ",
+    desc: "Deep, intense thriller voice",
     accent: "#2E5C4E",
   },
   {
     id: "yamin",
-    name: "ရာမင်း",
+    name: "Yamin",
     tag: "Confident",
-    desc: "ခိုင်မာ၊ ယုံကြည်စိတ်ချရတဲ့ female narrator အသံ",
+    desc: "Firm, confident female narrator voice",
     accent: "#8C3B5E",
   },
   {
     id: "koaung",
-    name: "ကိုအောင်",
+    name: "Ko Aung",
     tag: "Action",
-    desc: "စိတ်လှုပ်ရှားဖွယ်၊ တက်ကြွတဲ့ action commentary အသံ",
+    desc: "Thrilling, high-energy action commentary voice",
     accent: "#B5651D",
   },
   {
     id: "koko",
-    name: "ကိုကို",
+    name: "Ko Ko",
     tag: "News Anchor",
-    desc: "ရှင်းလင်း၊ informative သတင်းဆရာဆန်တဲ့ အသံ",
+    desc: "Clear, informative news-anchor style voice",
     accent: "#3C6E8F",
   },
   {
     id: "maley",
-    name: "မလေး",
+    name: "Ma Lay",
     tag: "Youthful",
-    desc: "ငယ်ရွယ်၊ သွက်လက်တက်ကြွတဲ့ female voice အသံ",
+    desc: "Young, lively female voice",
     accent: "#A0527A",
   },
 ];
 
 const TONES = [
-  { id: "suspense", label: "တင်းမာဖွယ်" },
-  { id: "comedy", label: "ရယ်စရာ" },
-  { id: "emotional", label: "ခံစားချက်" },
-  { id: "epic", label: "ဒရာမာကြီး" },
+  { id: "suspense", label: "Suspense" },
+  { id: "comedy", label: "Comedy" },
+  { id: "emotional", label: "Emotional" },
+  { id: "epic", label: "Epic" },
 ];
 
 export default function RecapUpload() {
@@ -113,7 +113,7 @@ export default function RecapUpload() {
       });
       const data = await res.json();
       if (!res.ok || !data.ok) {
-        throw new Error(data.error || `Link စစ်ဆေးမှု မအောင်မြင်ပါ (${res.status})`);
+        throw new Error(data.error || `Link check failed (${res.status})`);
       }
       setLinkInfo(data.info);
     } catch (err) {
@@ -124,12 +124,12 @@ export default function RecapUpload() {
   };
 
   const STAGE_LABELS = {
-    queued: "တန်းစီနေပါတယ်…",
-    downloading: "Link ကနေ ဗီဒီယို ဒေါင်းလုဒ်ဆွဲနေပါတယ်…",
-    transcribing: "ဗီဒီယိုထဲက စကားလုံးတွေ နားထောင်နေပါတယ်…",
-    writing_script: "ဇာတ်ကြောင်း ရေးနေပါတယ်…",
-    narrating: `${""}အသံသွင်းနေပါတယ်…`,
-    rendering: "ဗီဒီယို ပြင်ဆင်နေပါတယ်…",
+    queued: "Queued…",
+    downloading: "Downloading video from link…",
+    transcribing: "Listening to the video…",
+    writing_script: "Writing the script…",
+    narrating: "Recording the narration…",
+    rendering: "Rendering the video…",
   };
 
   const handleFiles = useCallback((files) => {
@@ -181,7 +181,7 @@ export default function RecapUpload() {
 
       const data = await res.json();
       const base64 = data.audioBase64;
-      if (!base64) throw new Error("Response ဆီမှာ audio data မပါဘူး");
+      if (!base64) throw new Error("Response missing audio data");
       const audioUrl = `data:${data.mimeType || "audio/wav"};base64,${base64}`;
 
       const audio = new Audio(audioUrl);
@@ -281,7 +281,7 @@ export default function RecapUpload() {
 
         if (data.status === "error") {
           stopPolling();
-          setGenError(data.error || "အမှားတစ်ခုခု ဖြစ်သွားပါတယ်");
+          setGenError(data.error || "Something went wrong");
           setStage("error");
         } else if (data.status === "done") {
           stopPolling();
@@ -322,12 +322,12 @@ export default function RecapUpload() {
             className="mt-4 text-4xl sm:text-5xl leading-[1.15]"
             style={{ fontWeight: 700, letterSpacing: "-0.01em" }}
           >
-            ရုပ်ရှင်ကို ဇာတ်လမ်းအဖြစ်
+            Turn Movies Into
             <br />
-            <span className="text-[#C9A227]">ပြန်ပြောကြရအောင်</span>
+            <span className="text-[#C9A227]">Recap Stories</span>
           </h1>
           <p className="mt-4 max-w-md text-[15px] leading-relaxed text-[#F0E6D2]/60">
-            ဗီဒီယိုတစ်ခု တင်ပါ၊ အသံရွေးပါ၊ Coco.EXE က မြန်မာလို ဇာတ်ကြောင်းပြန်ပြောပေးပါလိမ့်မယ်။
+            Upload a video, pick a voice, and Coco.EXE will narrate a recap for you.
           </p>
         </header>
 
@@ -346,7 +346,7 @@ export default function RecapUpload() {
               color: mode === "upload" ? "#C9A227" : "rgba(240,230,210,0.55)",
             }}
           >
-            ဖိုင် Upload
+            Upload File
           </button>
           <button
             onClick={() => {
@@ -402,17 +402,17 @@ export default function RecapUpload() {
                 </div>
                 <div>
                   <p className="text-[15px] font-medium">
-                    ဗီဒီယို ဖိုင်ကို ဆွဲချထည့်ပါ
+                    Drag and drop your video file
                   </p>
                   <p className="mt-1 text-[13px] text-[#F0E6D2]/45">
-                    MP4, MOV — အများဆုံး 500MB
+                    MP4, MOV — up to 500MB
                   </p>
                 </div>
                 <button
                   onClick={() => inputRef.current?.click()}
                   className="mt-2 rounded-full border border-[#F0E6D2]/25 px-5 py-2 text-[13px] transition hover:border-[#C9A227] hover:text-[#C9A227]"
                 >
-                  ဖိုင်ရွေးပါ
+                  Choose File
                 </button>
                 <input
                   ref={inputRef}
@@ -433,7 +433,7 @@ export default function RecapUpload() {
                       {file.name}
                     </p>
                     <p className="text-[12px] text-[#F0E6D2]/45">
-                      {(file.size / (1024 * 1024)).toFixed(1)} MB — အသင့်ဖြစ်ပါပြီ
+                      {(file.size / (1024 * 1024)).toFixed(1)} MB — ready
                     </p>
                   </div>
                 </div>
@@ -443,7 +443,7 @@ export default function RecapUpload() {
                     setStage("idle");
                   }}
                   className="shrink-0 rounded-full p-2 text-[#F0E6D2]/40 transition hover:bg-white/5 hover:text-[#F0E6D2]"
-                  aria-label="ဖိုင်ဖယ်ရှားရန်"
+                  aria-label="Remove file"
                 >
                   <X size={16} />
                 </button>
@@ -474,7 +474,7 @@ export default function RecapUpload() {
                 setLinkInfo(null);
                 setLinkError(null);
               }}
-              placeholder="Link ကို ကူးထည့်ပါ"
+              placeholder="Paste your link"
               className="min-w-0 flex-1 rounded-lg border border-[#F0E6D2]/18 bg-transparent px-4 py-2.5 text-[14px] outline-none placeholder:text-[#F0E6D2]/35 focus:border-[#C9A227]"
             />
             <button
@@ -482,7 +482,7 @@ export default function RecapUpload() {
               disabled={!linkUrl.trim() || linkChecking}
               className="shrink-0 rounded-full border border-[#F0E6D2]/25 px-5 py-2.5 text-[13px] transition hover:border-[#C9A227] hover:text-[#C9A227] disabled:cursor-not-allowed disabled:opacity-40"
             >
-              {linkChecking ? <Loader2 size={14} className="animate-spin" /> : "စစ်ဆေးမယ်"}
+              {linkChecking ? <Loader2 size={14} className="animate-spin" /> : "Check"}
             </button>
           </div>
 
@@ -518,7 +518,7 @@ export default function RecapUpload() {
           <div className="mb-5 flex items-center gap-2">
             <Mic2 size={15} strokeWidth={1.5} className="text-[#C9A227]" />
             <h2 className="text-[13px] uppercase tracking-[0.2em] text-[#F0E6D2]/55">
-              ဇာတ်ကြောင်းပြောသူ ရွေးပါ
+              Choose a Narrator
             </h2>
           </div>
 
@@ -572,7 +572,7 @@ export default function RecapUpload() {
                       previewVoice(v.id);
                     }}
                     role="button"
-                    aria-label={errored ? "အသံနမူနာ တင်၍မရပါ" : "အသံနမူနာ နားထောင်ရန်"}
+                    aria-label={errored ? "Preview unavailable" : "Preview voice"}
                     className="absolute right-3 top-3 flex h-6 w-6 items-center justify-center rounded-full text-[#F0E6D2]/50 transition hover:text-[#F0E6D2]"
                   >
                     {loading ? (
@@ -605,7 +605,7 @@ export default function RecapUpload() {
           <div className="mb-4 flex items-center gap-2">
             <Sparkles size={15} strokeWidth={1.5} className="text-[#C9A227]" />
             <h2 className="text-[13px] uppercase tracking-[0.2em] text-[#F0E6D2]/55">
-              ဇာတ်လမ်း အနှစ်သာရ
+              Story Tone
             </h2>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -644,13 +644,13 @@ export default function RecapUpload() {
             {stage === "processing" ? (
               <>
                 <Wand2 size={17} className="animate-pulse" />
-                {STAGE_LABELS[jobStatus] || `${activeVoice?.name} က ဇာတ်ကြောင်းပြောနေပါပြီ…`}
+                {STAGE_LABELS[jobStatus] || `${activeVoice?.name} is narrating the story…`}
                 <span className="ml-1 tabular-nums opacity-80">{jobProgress}%</span>
               </>
             ) : (
               <>
                 <Wand2 size={17} />
-                ဇာတ်ကြောင်း ပြန်ပြောပေးပါ
+                Generate Recap
               </>
             )}
           </button>
@@ -669,7 +669,7 @@ export default function RecapUpload() {
 
           {stage === "error" && (
             <p className="mt-4 text-center text-[13px] text-[#B2452D]">
-              အမှားတစ်ခုခု ဖြစ်သွားပါတယ်: {genError}
+              Something went wrong: {genError}
             </p>
           )}
 
@@ -680,13 +680,13 @@ export default function RecapUpload() {
               style={{ borderColor: "rgba(240,230,210,0.25)" }}
             >
               <Check size={16} />
-              Recap ဗီဒီယို ဒေါင်းလုဒ်ဆွဲရန်
+              Download Recap Video
             </a>
           )}
         </section>
 
         <p className="mt-6 text-center text-[12px] text-[#F0E6D2]/35">
-          {activeVoice?.name} · {TONES.find((t) => t.id === tone)?.label} အသွင်ဖြင့် ပြင်ဆင်မည်
+          {activeVoice?.name} · {TONES.find((t) => t.id === tone)?.label} style will be generated
         </p>
       </div>
 
