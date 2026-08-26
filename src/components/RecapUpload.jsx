@@ -1,7 +1,7 @@
 import { useState, useRef, useCallback } from "react";
 import { Upload, Film, Play, Pause, Wand2, Mic2, X, Check, Sparkles, Loader2, AlertCircle, Link2 } from "lucide-react";
 
-const PREVIEW_TEXT = "Hello, this is my voice sample.";
+const PREVIEW_TEXT = "မင်္ဂလာပါ၊ ဒါက ကျွန်တော့်အသံနမူနာ ဖြစ်ပါတယ်။";
 
 // Recap backend (Render) — falls back to this deployed URL, or override
 // locally via a .env file with VITE_RECAP_BACKEND_URL for local dev.
