@@ -38,6 +38,34 @@ const VOICES = [
     desc: "နက်ရှိုင်း၊ တင်းမာတဲ့ thriller အသံ",
     accent: "#2E5C4E",
   },
+  {
+    id: "yamin",
+    name: "ရာမင်း",
+    tag: "Confident",
+    desc: "ခိုင်မာ၊ ယုံကြည်စိတ်ချရတဲ့ female narrator အသံ",
+    accent: "#8C3B5E",
+  },
+  {
+    id: "koaung",
+    name: "ကိုအောင်",
+    tag: "Action",
+    desc: "စိတ်လှုပ်ရှားဖွယ်၊ တက်ကြွတဲ့ action commentary အသံ",
+    accent: "#B5651D",
+  },
+  {
+    id: "koko",
+    name: "ကိုကို",
+    tag: "News Anchor",
+    desc: "ရှင်းလင်း၊ informative သတင်းဆရာဆန်တဲ့ အသံ",
+    accent: "#3C6E8F",
+  },
+  {
+    id: "maley",
+    name: "မလေး",
+    tag: "Youthful",
+    desc: "ငယ်ရွယ်၊ သွက်လက်တက်ကြွတဲ့ female voice အသံ",
+    accent: "#A0527A",
+  },
 ];
 
 const TONES = [
