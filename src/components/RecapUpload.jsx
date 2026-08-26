@@ -331,12 +331,49 @@ export default function RecapUpload() {
   const activeVoice = VOICES.find((v) => v.id === voice);
 
   // ── Post-generation editor: drag-to-position blur box / logo ─
+  // blurBox/logoBox percentages are always relative to the ACTUAL video
+  // frame (matching what the backend's ffprobe-based applyOverlays
+  // expects) — not the <video> element's rendered box, which can include
+  // black letterbox bars when the video's aspect ratio doesn't match the
+  // container (e.g. a portrait 9:16 video in a wider preview box). The
+  // functions below convert between video-space percentages (what we
+  // store and send to the backend) and container-space percentages (what
+  // CSS needs to actually draw the overlay in the right spot).
+  const [videoDims, setVideoDims] = useState(null); // { width, height } natural pixels
+  const videoRef = useRef(null);
+
+  const getContentBox = () => {
+    const container = previewBoxRef.current;
+    if (!container || !videoDims) return { leftPct: 0, topPct: 0, widthPct: 100, heightPct: 100 };
+    const rect = container.getBoundingClientRect();
+    const containerAspect = rect.width / rect.height;
+    const videoAspect = videoDims.width / videoDims.height;
+    if (videoAspect > containerAspect) {
+      const heightPct = (containerAspect / videoAspect) * 100;
+      return { leftPct: 0, widthPct: 100, topPct: (100 - heightPct) / 2, heightPct };
+    }
+    const widthPct = (videoAspect / containerAspect) * 100;
+    return { topPct: 0, heightPct: 100, leftPct: (100 - widthPct) / 2, widthPct };
+  };
+
+  // video-space % → container-space % (for rendering the overlay's CSS position)
+  const toContainerBox = (videoBox) => {
+    const c = getContentBox();
+    return {
+      left: c.leftPct + (videoBox.xPct / 100) * c.widthPct,
+      top: c.topPct + (videoBox.yPct / 100) * c.heightPct,
+      width: (videoBox.wPct / 100) * c.widthPct,
+      height: videoBox.hPct != null ? (videoBox.hPct / 100) * c.heightPct : undefined,
+    };
+  };
+
   const startDrag = (kind) => (e) => {
     e.preventDefault();
     e.stopPropagation();
     const container = previewBoxRef.current;
     if (!container) return;
     const rect = container.getBoundingClientRect();
+    const c = getContentBox();
     const box = kind === "blur" ? blurBox : logoBox;
     const startClientX = e.clientX;
     const startClientY = e.clientY;
@@ -345,8 +382,13 @@ export default function RecapUpload() {
     const maxYPct = kind === "blur" ? 100 - box.hPct : 96;
 
     const onMove = (moveEvent) => {
-      const dxPct = ((moveEvent.clientX - startClientX) / rect.width) * 100;
-      const dyPct = ((moveEvent.clientY - startClientY) / rect.height) * 100;
+      // container-pixel delta → container-% delta → video-% delta
+      // (scaled up since the video content only occupies part of the
+      // container when letterboxed)
+      const dxContainerPct = ((moveEvent.clientX - startClientX) / rect.width) * 100;
+      const dyContainerPct = ((moveEvent.clientY - startClientY) / rect.height) * 100;
+      const dxPct = dxContainerPct * (100 / c.widthPct);
+      const dyPct = dyContainerPct * (100 / c.heightPct);
       const newX = Math.min(100 - box.wPct, Math.max(0, startXPct + dxPct));
       const newY = Math.min(maxYPct, Math.max(0, startYPct + dyPct));
       if (kind === "blur") setBlurBox((b) => ({ ...b, xPct: newX, yPct: newY }));
@@ -366,14 +408,17 @@ export default function RecapUpload() {
     const container = previewBoxRef.current;
     if (!container) return;
     const rect = container.getBoundingClientRect();
+    const c = getContentBox();
     const startClientX = e.clientX;
     const startClientY = e.clientY;
     const startW = blurBox.wPct;
     const startH = blurBox.hPct;
 
     const onMove = (moveEvent) => {
-      const dwPct = ((moveEvent.clientX - startClientX) / rect.width) * 100;
-      const dhPct = ((moveEvent.clientY - startClientY) / rect.height) * 100;
+      const dwContainerPct = ((moveEvent.clientX - startClientX) / rect.width) * 100;
+      const dhContainerPct = ((moveEvent.clientY - startClientY) / rect.height) * 100;
+      const dwPct = dwContainerPct * (100 / c.widthPct);
+      const dhPct = dhContainerPct * (100 / c.heightPct);
       setBlurBox((b) => ({
         ...b,
         wPct: Math.min(100 - b.xPct, Math.max(8, startW + dwPct)),
@@ -397,6 +442,7 @@ export default function RecapUpload() {
     });
     setShowLogo(true);
   };
+
 
   const applyEdits = async () => {
     if (!jobId || (!showBlurBox && !(showLogo && logoFile))) return;
@@ -816,50 +862,65 @@ export default function RecapUpload() {
                 style={{ borderColor: "rgba(240,230,210,0.18)" }}
               >
                 <video
+                  ref={videoRef}
                   src={resultUrl}
                   controls
                   className="block w-full"
                   style={{ maxHeight: 420, background: "#000" }}
+                  onLoadedMetadata={() => {
+                    if (videoRef.current) {
+                      setVideoDims({
+                        width: videoRef.current.videoWidth,
+                        height: videoRef.current.videoHeight,
+                      });
+                    }
+                  }}
                 />
 
-                {showBlurBox && (
-                  <div
-                    onMouseDown={startDrag("blur")}
-                    className="absolute cursor-move border-2"
-                    style={{
-                      left: `${blurBox.xPct}%`,
-                      top: `${blurBox.yPct}%`,
-                      width: `${blurBox.wPct}%`,
-                      height: `${blurBox.hPct}%`,
-                      borderColor: "#C9A227",
-                      background: "rgba(201,162,39,0.18)",
-                      backdropFilter: "blur(6px)",
-                    }}
-                  >
-                    <span className="absolute left-1 top-1 rounded bg-black/60 px-1.5 py-0.5 text-[10px] text-[#F0E6D2]">
-                      Blur
-                    </span>
+                {showBlurBox && (() => {
+                  const b = toContainerBox(blurBox);
+                  return (
                     <div
-                      onMouseDown={startResizeBlur}
-                      className="absolute bottom-0 right-0 h-3 w-3 cursor-nwse-resize rounded-tl bg-[#C9A227]"
-                    />
-                  </div>
-                )}
+                      onMouseDown={startDrag("blur")}
+                      className="absolute cursor-move border-2"
+                      style={{
+                        left: `${b.left}%`,
+                        top: `${b.top}%`,
+                        width: `${b.width}%`,
+                        height: `${b.height}%`,
+                        borderColor: "#C9A227",
+                        background: "rgba(201,162,39,0.18)",
+                        backdropFilter: "blur(6px)",
+                      }}
+                    >
+                      <span className="absolute left-1 top-1 rounded bg-black/60 px-1.5 py-0.5 text-[10px] text-[#F0E6D2]">
+                        Blur
+                      </span>
+                      <div
+                        onMouseDown={startResizeBlur}
+                        className="absolute bottom-0 right-0 h-3 w-3 cursor-nwse-resize rounded-tl bg-[#C9A227]"
+                      />
+                    </div>
+                  );
+                })()}
 
-                {showLogo && logoPreviewUrl && (
-                  <img
-                    src={logoPreviewUrl}
-                    onMouseDown={startDrag("logo")}
-                    className="absolute cursor-move select-none"
-                    style={{
-                      left: `${logoBox.xPct}%`,
-                      top: `${logoBox.yPct}%`,
-                      width: `${logoBox.wPct}%`,
-                    }}
-                    draggable={false}
-                    alt="Logo overlay"
-                  />
-                )}
+                {showLogo && logoPreviewUrl && (() => {
+                  const b = toContainerBox(logoBox);
+                  return (
+                    <img
+                      src={logoPreviewUrl}
+                      onMouseDown={startDrag("logo")}
+                      className="absolute cursor-move select-none"
+                      style={{
+                        left: `${b.left}%`,
+                        top: `${b.top}%`,
+                        width: `${b.width}%`,
+                      }}
+                      draggable={false}
+                      alt="Logo overlay"
+                    />
+                  );
+                })()}
               </div>
 
               {/* Editor controls */}
